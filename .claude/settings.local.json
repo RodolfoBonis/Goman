@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(task dev)",
+      "Bash(go mod:*)",
+      "Bash(go run:*)",
+      "Bash(find:*)",
+      "Bash(wails3 build:*)",
+      "Bash(./bin/goman)",
+      "Bash(ls:*)",
+      "Bash(sqlite3:*)",
+      "Bash(go build:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": []
+  }
+}

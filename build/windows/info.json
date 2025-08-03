@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "1.0.0"
+	},
+	"info": {
+		"0000": {
+			"ProductVersion": "1.0.0",
+			"CompanyName": "RodolfoBonis",
+			"FileDescription": "A powerful API client for testing and development",
+			"LegalCopyright": "(c) 2025, RodolfoBonis",
+			"ProductName": "GoMan",
+			"Comments": "Modern API testing tool built with Go and React"
+		}
+	}
+}
