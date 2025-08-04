@@ -11,6 +11,10 @@ import {
   Trash2,
   Copy,
   FileText,
+  Download,
+  Upload,
+  Play,
+  FileText as FileTextIcon,
 } from 'lucide-react';
 import { useAPIStore, useUIStore, useTabsStore } from '@/store';
 import { Button, Input } from '@/components/ui';
@@ -20,11 +24,14 @@ import { CreateRequestModal } from '@/components/modals/CreateRequestModal';
 import { CreateRequestInCollectionModal } from '@/components/modals/CreateRequestInCollectionModal';
 import { EditFolderModal } from '@/components/modals/EditFolderModal';
 import { SaveRequestModal } from '@/components/modals/SaveRequestModal';
+import { ImportExportModal } from '@/components/modals/ImportExportModal';
+import { BulkOperationsModal } from '@/components/modals/BulkOperationsModal';
+import { ConfirmationModal } from '@/components/modals/ConfirmationModal';
 
 import { getMethodColor, cn } from '@/utils';
 import type { CollectionTreeItem, HTTPMethod } from '@/types';
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: React.FC = (): JSX.Element => {
   const { 
     sidebarCollapsed, 
     searchQuery, 
@@ -46,6 +53,9 @@ export const Sidebar: React.FC = () => {
     createCollection,
     createFolder,
     createRequest,
+    deleteCollection,
+    deleteFolder,
+    deleteRequest,
   } = useAPIStore();
 
   const { openRequestTab, openCollectionTab } = useTabsStore();
@@ -62,11 +72,266 @@ export const Sidebar: React.FC = () => {
   const [showCreateRequestInCollectionModal, setShowCreateRequestInCollectionModal] = React.useState(false);
   const [showEditFolderModal, setShowEditFolderModal] = React.useState(false);
   const [showSaveRequestModal, setShowSaveRequestModal] = React.useState(false);
+  const [showImportExportModal, setShowImportExportModal] = React.useState(false);
+  const [showBulkOperationsModal, setShowBulkOperationsModal] = React.useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = React.useState(false);
+  const [itemToDelete, setItemToDelete] = React.useState<CollectionTreeItem | null>(null);
   
   const [dropdownOpen, setDropdownOpen] = React.useState<string | null>(null);
   const [editingItem, setEditingItem] = React.useState<CollectionTreeItem | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = React.useState<number | undefined>();
   const [selectedFolderId, setSelectedFolderId] = React.useState<number | undefined>();
+  // Enhanced drag and drop state management
+  const [dragState, setDragState] = React.useState<{
+    isDragging: boolean;
+    draggedItem: {
+      type: 'request' | 'folder';
+      id: number;
+      name: string;
+      currentCollectionId: number;
+      currentFolderId?: number;
+    } | null;
+    dropTarget: {
+      id: string;
+      type: string;
+      position: 'before' | 'after' | 'inside';
+    } | null;
+    dropZones: Set<string>;
+  }>({
+    isDragging: false,
+    draggedItem: null,
+    dropTarget: null,
+    dropZones: new Set(),
+  });
+
+  // Debug function to log current state
+  const logCurrentState = () => {
+    console.log('=== CURRENT STATE ===');
+    console.log('Collections:', collections);
+    console.log('Folders:', folders);
+    console.log('Requests:', requests);
+    console.log('Drag State:', dragState);
+  };
+
+  // Enhanced drag start with validation
+  const handleDragStart = (e: React.DragEvent, item: CollectionTreeItem) => {
+    // Only allow dragging requests and folders
+    if (item.type === 'collection') {
+      e.preventDefault();
+      return;
+    }
+
+    // Get current location of the item
+    const currentRequest = requests.find(r => r.id === item.id);
+    const currentFolder = folders.find(f => f.id === item.id);
+    
+    const draggedData = {
+      type: item.type as 'request' | 'folder',
+      id: item.id,
+      name: item.name,
+      currentCollectionId: currentRequest?.collection_id || currentFolder?.collection_id || 0,
+      currentFolderId: currentRequest?.folder_id || currentFolder?.parent_folder_id,
+    };
+    
+    e.dataTransfer.setData('application/json', JSON.stringify(draggedData));
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Set drag state
+    setDragState(prev => ({
+      ...prev,
+      isDragging: true,
+      draggedItem: draggedData,
+      dropTarget: null,
+      dropZones: new Set(),
+    }));
+
+    console.log('Drag started:', draggedData);
+  };
+
+  // Enhanced drag end with cleanup
+  const handleDragEnd = () => {
+    setDragState(prev => ({
+      ...prev,
+      isDragging: false,
+      draggedItem: null,
+      dropTarget: null,
+      dropZones: new Set(),
+    }));
+    console.log('Drag ended');
+  };
+
+  // Professional drag over with precise positioning
+  const handleDragOver = (e: React.DragEvent, targetId: string, targetType: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (!dragState.draggedItem) return;
+    
+    // Prevent dropping on itself
+    const targetIdNum = parseInt(targetId.split('-')[1]);
+    if (dragState.draggedItem.id === targetIdNum) {
+      return;
+    }
+    
+    // Calculate drop position with precision
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+    
+    let position: 'before' | 'after' | 'inside' = 'inside';
+    
+    if (targetType === 'collection') {
+      // For collections, only allow 'inside'
+      position = 'inside';
+    } else if (targetType === 'folder') {
+      // For folders, allow all positions
+      if (y < height * 0.2) {
+        position = 'before';
+      } else if (y > height * 0.8) {
+        position = 'after';
+      } else {
+        position = 'inside';
+      }
+    } else {
+      // For requests, only allow before/after
+      position = y < height / 2 ? 'before' : 'after';
+    }
+    
+    // Update drop target
+    setDragState(prev => ({
+      ...prev,
+      dropTarget: {
+        id: targetId,
+        type: targetType,
+        position,
+      },
+    }));
+  };
+
+  // Enhanced drop handling with comprehensive validation and debugging
+  const handleDrop = async (e: React.DragEvent, targetId: string, targetType: string) => {
+    e.preventDefault();
+    
+    console.log('=== DROP ATTEMPT ===');
+    logCurrentState();
+    
+    if (!dragState.draggedItem || !dragState.dropTarget) {
+      console.log('❌ Invalid drop state');
+      return;
+    }
+
+    try {
+      const draggedData = dragState.draggedItem;
+      const [targetItemType, targetItemId] = targetId.split('-');
+      const targetItemIdNum = parseInt(targetItemId);
+      
+      console.log('🎯 Drop details:', {
+        dragged: draggedData,
+        target: { type: targetItemType, id: targetItemIdNum },
+        position: dragState.dropTarget.position,
+        rawTargetId: targetId,
+        parsedTarget: { type: targetItemType, id: targetItemIdNum }
+      });
+
+      const { moveRequest, moveFolder } = useAPIStore.getState();
+      
+      // Validate drop operation - only prevent dropping on itself if same type
+      if (draggedData.type === targetItemType && draggedData.id === targetItemIdNum) {
+        console.log('❌ Cannot drop item on itself');
+        return;
+      }
+
+      // Handle request movement
+      if (draggedData.type === 'request') {
+        let newCollectionId: number;
+        let newFolderId: number | undefined;
+
+        if (targetItemType === 'collection') {
+          newCollectionId = targetItemIdNum;
+          newFolderId = undefined;
+          console.log('📁 Moving request to collection:', newCollectionId);
+        } else if (targetItemType === 'folder') {
+          const targetFolder = folders.find(f => f.id === targetItemIdNum);
+          if (!targetFolder) {
+            console.log('❌ Target folder not found');
+            return;
+          }
+          newCollectionId = targetFolder.collection_id;
+          newFolderId = targetItemIdNum;
+          console.log('📁 Moving request to folder:', { newCollectionId, newFolderId });
+        } else {
+          console.log('❌ Invalid target type for request');
+          return;
+        }
+
+        // Validate move operation - allow reordering within same folder
+        if (newCollectionId === draggedData.currentCollectionId && 
+            newFolderId === draggedData.currentFolderId &&
+            dragState.dropTarget.position === 'inside') {
+          console.log('ℹ️ No movement needed - same location');
+          return;
+        }
+
+        console.log('🚀 Executing moveRequest...');
+        await moveRequest(draggedData.id, newCollectionId, newFolderId);
+        console.log('✅ Request moved successfully');
+        
+        // Refresh data after move
+        await useAPIStore.getState().fetchRequests();
+        await useAPIStore.getState().fetchFolders();
+        
+      } else if (draggedData.type === 'folder') {
+        let newCollectionId: number;
+        let newParentFolderId: number | undefined;
+
+        if (targetItemType === 'collection') {
+          newCollectionId = targetItemIdNum;
+          newParentFolderId = undefined;
+          console.log('📁 Moving folder to collection:', newCollectionId);
+        } else if (targetItemType === 'folder') {
+          const targetFolder = folders.find(f => f.id === targetItemIdNum);
+          if (!targetFolder) {
+            console.log('❌ Target folder not found');
+            return;
+          }
+          newCollectionId = targetFolder.collection_id;
+          newParentFolderId = targetItemIdNum;
+          console.log('📁 Moving folder to folder:', { newCollectionId, newParentFolderId });
+        } else {
+          console.log('❌ Invalid target type for folder');
+          return;
+        }
+
+        // Validate move operation - allow reordering within same folder
+        if (newCollectionId === draggedData.currentCollectionId && 
+            newParentFolderId === draggedData.currentFolderId &&
+            dragState.dropTarget.position === 'inside') {
+          console.log('ℹ️ No movement needed - same location');
+          return;
+        }
+
+        console.log('🚀 Executing moveFolder...');
+        await moveFolder(draggedData.id, newCollectionId, newParentFolderId);
+        console.log('✅ Folder moved successfully');
+        
+        // Refresh data after move
+        await useAPIStore.getState().fetchFolders();
+      }
+      
+    } catch (error) {
+      console.error('❌ Error moving item:', error);
+    } finally {
+      // Always cleanup state
+      setDragState(prev => ({
+        ...prev,
+        isDragging: false,
+        draggedItem: null,
+        dropTarget: null,
+        dropZones: new Set(),
+      }));
+      console.log('🧹 Drag state cleaned up');
+    }
+  };
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -175,8 +440,14 @@ export const Sidebar: React.FC = () => {
         console.log('Duplicate:', item);
         break;
       case 'delete':
-        // TODO: Implement delete with confirmation
-        console.log('Delete:', item);
+        setItemToDelete(item);
+        setShowConfirmationModal(true);
+        break;
+      case 'import':
+        setShowImportExportModal(true);
+        break;
+      case 'bulk':
+        setShowBulkOperationsModal(true);
         break;
     }
   };
@@ -186,6 +457,29 @@ export const Sidebar: React.FC = () => {
       const request = await createRequest(name, method, url, '{}', '', selectedCollectionId, folderId);
       // Open the new request in a tab
       openRequestTab(request);
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      switch (itemToDelete.type) {
+        case 'collection':
+          await deleteCollection(itemToDelete.id);
+          console.log('✅ Collection deleted:', itemToDelete.name);
+          break;
+        case 'folder':
+          await deleteFolder(itemToDelete.id);
+          console.log('✅ Folder deleted:', itemToDelete.name);
+          break;
+        case 'request':
+          await deleteRequest(itemToDelete.id);
+          console.log('✅ Request deleted:', itemToDelete.name);
+          break;
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete item:', error);
     }
   };
 
@@ -199,17 +493,36 @@ export const Sidebar: React.FC = () => {
     const paddingLeft = level * 16 + 12;
 
     return (
-      <div key={`${item.type}-${item.id}`}>
-        <div
-          className={cn(
-            'flex items-center gap-2 py-1.5 px-3 text-sm cursor-pointer transition-colors duration-150',
-            'hover:bg-gray-100 group',
-            isSelected ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500' : 'text-gray-700'
+              <div key={`${item.type}-${item.id}`}>
+          {/* Drop indicator before item */}
+          {dragState.isDragging && 
+           dragState.draggedItem && 
+           dragState.draggedItem.id !== item.id &&
+           dragState.dropTarget?.id === `${item.type}-${item.id}` && 
+           dragState.dropTarget.position === 'before' && (
+            <div className="h-0.5 bg-blue-500 rounded-full my-1 transition-all duration-200" />
           )}
-          style={{ paddingLeft }}
-          onClick={() => handleItemClick(item)}
-          onContextMenu={(e) => handleContextMenu(e, item)}
-        >
+          
+          <div
+            className={cn(
+              'flex items-center gap-2 py-1.5 px-3 text-sm cursor-pointer transition-colors duration-150 relative',
+              'hover:bg-gray-100 group',
+              isSelected ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500' : 'text-gray-700',
+              dragState.isDragging && 
+              dragState.draggedItem && 
+              dragState.draggedItem.id !== item.id &&
+              dragState.dropTarget?.id === `${item.type}-${item.id}` && 
+              dragState.dropTarget.position === 'inside' && 'ring-2 ring-blue-500 ring-inset'
+            )}
+            style={{ paddingLeft }}
+            onClick={() => handleItemClick(item)}
+            onContextMenu={(e) => handleContextMenu(e, item)}
+            draggable={item.type !== 'collection'}
+            onDragStart={(e) => handleDragStart(e, item)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => handleDragOver(e, `${item.type}-${item.id}`, item.type)}
+            onDrop={(e) => handleDrop(e, `${item.type}-${item.id}`, item.type)}
+          >
           {/* Expand/Collapse Icon */}
           {(item.type === 'collection' || item.type === 'folder') && hasChildren && (
             <button
@@ -293,23 +606,44 @@ export const Sidebar: React.FC = () => {
                       <div className="border-t border-gray-100 my-1" />
                       <button
                         className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => handleDropdownAction('import', item)}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import/Export
+                      </button>
+                      <button
+                        className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => handleDropdownAction('bulk', item)}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        Bulk Operations
+                      </button>
+                      <div className="border-t border-gray-100 my-1" />
+                      <button
+                        className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => handleDropdownAction('edit', item)}
                       >
                         <Edit3 className="h-4 w-4 mr-2" />
                         Edit Collection
                       </button>
-                    </>
-                  )}
-                  
-                  {item.type === 'folder' && (
-                    <>
                       <button
                         className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => handleDropdownAction('createFolder', item)}
+                        onClick={() => handleDropdownAction('duplicate', item)}
                       >
-                        <Folder className="h-4 w-4 mr-2" />
-                        Create Subfolder
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate
                       </button>
+                      <button
+                        className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                        onClick={() => handleDropdownAction('delete', item)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  {item.type === 'folder' && (
+                    <>
                       <button
                         className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => handleDropdownAction('createRequest', item)}
@@ -327,14 +661,20 @@ export const Sidebar: React.FC = () => {
                       </button>
                       <button
                         className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => handleDropdownAction('duplicate', item)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate
+                      </button>
+                      <button
+                        className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                         onClick={() => handleDropdownAction('delete', item)}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Folder
+                        Delete
                       </button>
                     </>
                   )}
-                  
                   {item.type === 'request' && (
                     <>
                       <button
@@ -342,22 +682,14 @@ export const Sidebar: React.FC = () => {
                         onClick={() => handleDropdownAction('duplicate', item)}
                       >
                         <Copy className="h-4 w-4 mr-2" />
-                        Duplicate Request
-                      </button>
-                      <div className="border-t border-gray-100 my-1" />
-                      <button
-                        className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => handleDropdownAction('edit', item)}
-                      >
-                        <Edit3 className="h-4 w-4 mr-2" />
-                        Edit Request
+                        Duplicate
                       </button>
                       <button
-                        className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-gray-100"
+                        className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                         onClick={() => handleDropdownAction('delete', item)}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Request
+                        Delete
                       </button>
                     </>
                   )}
@@ -366,6 +698,15 @@ export const Sidebar: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Drop indicator after item */}
+        {dragState.isDragging && 
+         dragState.draggedItem && 
+         dragState.draggedItem.id !== item.id &&
+         dragState.dropTarget?.id === `${item.type}-${item.id}` && 
+         dragState.dropTarget.position === 'after' && (
+          <div className="h-0.5 bg-blue-500 rounded-full my-1 transition-all duration-200" />
+        )}
 
         {/* Children */}
         {item.type === 'folder' && isExpanded && hasChildren && (
@@ -387,7 +728,7 @@ export const Sidebar: React.FC = () => {
   return (
     <>
       <div className={cn(
-        'fixed left-0 top-12 h-[calc(100vh-3rem)] bg-white border-r border-gray-200 transition-all duration-300 z-30',
+        'bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0 h-full overflow-hidden',
         sidebarCollapsed ? 'w-16' : 'w-80'
       )}>
         {/* Sidebar Header */}
@@ -435,6 +776,23 @@ export const Sidebar: React.FC = () => {
         <div className="flex-1 overflow-y-auto pb-4 h-full">
           {!sidebarCollapsed ? (
             <div className="py-2">
+              {/* Drop line for root level - only visible when dragging */}
+              {dragState.isDragging && (
+                <div
+                  className="h-0.5 bg-blue-500 rounded-full mb-2 transition-all duration-200"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const draggedData = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    console.log('Drop on root:', { dragged: draggedData });
+                    // TODO: Move item to root level
+                  }}
+                />
+              )}
+
               {collectionTree.length > 0 ? (
                 collectionTree.map(item => renderTreeItem(item))
               ) : searchQuery ? (
@@ -590,6 +948,31 @@ export const Sidebar: React.FC = () => {
           />
         );
       })()}
+
+      <ImportExportModal
+        isOpen={showImportExportModal}
+        onClose={() => setShowImportExportModal(false)}
+      />
+
+      <BulkOperationsModal
+        isOpen={showBulkOperationsModal}
+        onClose={() => setShowBulkOperationsModal(false)}
+        selectedRequests={requests.filter(r => r.collection_id === selectedCollectionId)}
+      />
+
+      <ConfirmationModal
+        isOpen={showConfirmationModal}
+        onClose={() => {
+          setShowConfirmationModal(false);
+          setItemToDelete(null);
+        }}
+        onConfirm={handleDeleteItem}
+        title={`Delete ${itemToDelete?.type || 'item'}`}
+        message={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </>
   );
 };

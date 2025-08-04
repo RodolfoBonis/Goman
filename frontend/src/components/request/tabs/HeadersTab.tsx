@@ -24,63 +24,45 @@ export const HeadersTab: React.FC = () => {
   const { activeRequest, updateActiveRequestHeaders } = useUIStore();
   const { environments } = useAPIStore();
 
-  // Parse headers from request or use existing parsed headers
-  const [headers, setHeaders] = React.useState<KeyValue[]>(() => {
-    if (activeRequest?.parsedHeaders) {
-      return activeRequest.parsedHeaders;
-    }
-    return activeRequest?.headers ? parseHeaders(activeRequest.headers) : [];
-  });
+  // Use store values directly
+  const headers = activeRequest?.parsedHeaders || (activeRequest?.headers ? parseHeaders(activeRequest.headers) : []);
 
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
   const [activeSuggestionField, setActiveSuggestionField] = React.useState<string | null>(null);
 
-  // Sync headers when activeRequest changes
-  React.useEffect(() => {
+  const setHeaders = (newHeaders: KeyValue[]) => {
     if (activeRequest) {
-      const newHeaders = activeRequest.parsedHeaders || (activeRequest.headers ? parseHeaders(activeRequest.headers) : []);
-      setHeaders(newHeaders);
-    } else {
-      setHeaders([]);
+      updateActiveRequestHeaders(newHeaders);
     }
-  }, [activeRequest?.id, activeRequest?.headers]);
-
-  // Update store when headers change (but not on initial mount)
-  const isInitialMount = React.useRef(true);
-  React.useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    if (activeRequest) {
-      updateActiveRequestHeaders(headers);
-    }
-  }, [headers]);
+  };
 
   const addHeader = () => {
-    setHeaders(prev => [...prev, {
+    const newHeaders = [...headers, {
       id: generateId(),
       key: '',
       value: '',
       enabled: true,
-    }]);
+    }];
+    setHeaders(newHeaders);
   };
 
   const updateHeader = (id: string, field: keyof KeyValue, value: string | boolean) => {
-    setHeaders(prev => prev.map(header => 
+    const newHeaders = headers.map(header => 
       header.id === id ? { ...header, [field]: value } : header
-    ));
+    );
+    setHeaders(newHeaders);
   };
 
   const removeHeader = (id: string) => {
-    setHeaders(prev => prev.filter(header => header.id !== id));
+    const newHeaders = headers.filter(header => header.id !== id);
+    setHeaders(newHeaders);
   };
 
   const toggleHeader = (id: string) => {
-    setHeaders(prev => prev.map(header => 
+    const newHeaders = headers.map(header => 
       header.id === id ? { ...header, enabled: !header.enabled } : header
-    ));
+    );
+    setHeaders(newHeaders);
   };
 
   const handleKeyInputChange = (id: string, value: string) => {
@@ -105,11 +87,12 @@ export const HeadersTab: React.FC = () => {
   };
 
   const addCommonHeaders = () => {
-    const newHeaders: KeyValue[] = [
+    const commonHeaders: KeyValue[] = [
       { id: generateId(), key: 'Content-Type', value: 'application/json', enabled: true },
       { id: generateId(), key: 'Accept', value: 'application/json', enabled: true },
     ];
-    setHeaders(prev => [...prev, ...newHeaders]);
+    const newHeaders = [...headers, ...commonHeaders];
+    setHeaders(newHeaders);
   };
 
   return (
@@ -120,7 +103,7 @@ export const HeadersTab: React.FC = () => {
           <div>
             <h3 className="text-sm font-medium text-gray-900">Request Headers</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Add custom headers to your request
+              Add custom headers to your request • {headers.filter(h => h.enabled).length} active
             </p>
           </div>
           
@@ -272,14 +255,20 @@ export const HeadersTab: React.FC = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setHeaders(prev => prev.map(h => ({ ...h, enabled: true })))}
+                    onClick={() => {
+                      const newHeaders = headers.map(h => ({ ...h, enabled: true }));
+                      setHeaders(newHeaders);
+                    }}
                   >
                     Enable All
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setHeaders(prev => prev.map(h => ({ ...h, enabled: false })))}
+                    onClick={() => {
+                      const newHeaders = headers.map(h => ({ ...h, enabled: false }));
+                      setHeaders(newHeaders);
+                    }}
                   >
                     Disable All
                   </Button>
@@ -297,33 +286,105 @@ export const HeadersTab: React.FC = () => {
           </div>
         ) : (
           /* Empty State */
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                <Plus className="h-8 w-8 text-gray-400" />
+          <div className="flex-1 flex flex-col justify-center p-8">
+            <div className="text-center max-w-lg mx-auto">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 flex items-center justify-center">
+                <svg className="h-8 w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
               </div>
               
-              <h3 className="text-sm font-medium text-gray-900 mb-1">
-                No headers added
+              <h3 className="text-sm font-medium text-gray-900 mb-2">
+                No Request Headers
               </h3>
               
-              <p className="text-sm text-gray-500 mb-4">
-                Add custom headers to include additional information with your request
+              <p className="text-sm text-gray-500 mb-6">
+                Headers provide additional information about your request, such as content type, authentication, and API keys.
               </p>
+
+              {/* Quick Templates */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-900">Common Header Sets</h4>
+                
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => {
+                      const jsonHeaders = [
+                        { id: generateId(), key: 'Content-Type', value: 'application/json', enabled: true },
+                        { id: generateId(), key: 'Accept', value: 'application/json', enabled: true },
+                      ];
+                      setHeaders(jsonHeaders);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">JSON API</span>
+                      <p className="text-xs text-gray-500">Content-Type: application/json</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const authHeaders = [
+                        { id: generateId(), key: 'Authorization', value: `Bearer ${'{{access_token}}'}`, enabled: true },
+                        { id: generateId(), key: 'Content-Type', value: 'application/json', enabled: true },
+                      ];
+                      setHeaders(authHeaders);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Bearer Token</span>
+                      <p className="text-xs text-gray-500">Authorization: Bearer &#123;&#123;access_token&#125;&#125;</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const apiKeyHeaders = [
+                        { id: generateId(), key: 'X-API-Key', value: `${'{{api_key}}'}`, enabled: true },
+                        { id: generateId(), key: 'Accept', value: 'application/json', enabled: true },
+                      ];
+                      setHeaders(apiKeyHeaders);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">API Key</span>
+                      <p className="text-xs text-gray-500">X-API-Key: &#123;&#123;api_key&#125;&#125;</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const corsHeaders = [
+                        { id: generateId(), key: 'Origin', value: `${'{{base_url}}'}`, enabled: true },
+                        { id: generateId(), key: 'Access-Control-Request-Method', value: 'POST', enabled: true },
+                        { id: generateId(), key: 'Access-Control-Request-Headers', value: 'Content-Type', enabled: true },
+                      ];
+                      setHeaders(corsHeaders);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">CORS</span>
+                      <p className="text-xs text-gray-500">Cross-origin request headers</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+                </div>
+              </div>
               
-              <div className="flex items-center gap-2 justify-center">
-                <Button
-                  variant="secondary"
-                  onClick={addCommonHeaders}
-                >
-                  Add Common Headers
-                </Button>
+              <div className="flex items-center gap-2 justify-center mt-6">
                 <Button
                   variant="primary"
                   icon={<Plus className="h-4 w-4" />}
                   onClick={addHeader}
                 >
-                  Add Header
+                  Add Custom Header
                 </Button>
               </div>
             </div>

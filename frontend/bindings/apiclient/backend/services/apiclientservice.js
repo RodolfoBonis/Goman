@@ -290,6 +290,16 @@ export function GetRequestsByFolder(folderID) {
 }
 
 /**
+ * SaveFileToDownloads saves a file to the user's Downloads folder
+ * @param {string} filename
+ * @param {string} content
+ * @returns {$CancellablePromise<string>}
+ */
+export function SaveFileToDownloads(filename, content) {
+    return $Call.ByID(3346483781, filename, content);
+}
+
+/**
  * @param {number} id
  * @param {string} name
  * @param {string} description

@@ -8,67 +8,49 @@ import type { KeyValue } from '@/types';
 export const ParamsTab: React.FC = () => {
   const { activeRequest, updateActiveRequestField, updateActiveRequestParams } = useUIStore();
 
-  // Parse params from URL or use existing parsed params
-  const [params, setParams] = React.useState<KeyValue[]>(() => {
-    if (activeRequest?.params) {
-      return activeRequest.params;
-    }
-    return activeRequest?.url ? parseQueryParams(activeRequest.url) : [];
-  });
+  // Use store values directly
+  const params = activeRequest?.params || (activeRequest?.url ? parseQueryParams(activeRequest.url) : []);
 
-  // Sync params when activeRequest changes
-  React.useEffect(() => {
+  const setParams = (newParams: KeyValue[]) => {
     if (activeRequest) {
-      const newParams = activeRequest.params || (activeRequest.url ? parseQueryParams(activeRequest.url) : []);
-      setParams(newParams);
-    } else {
-      setParams([]);
-    }
-  }, [activeRequest?.id, activeRequest?.url]);
-
-  // Update store when params change (but not on initial mount)
-  const isInitialMount = React.useRef(true);
-  React.useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    if (activeRequest) {
-      updateActiveRequestParams(params);
+      updateActiveRequestParams(newParams);
       
       // Update URL with new params
       if (activeRequest.url) {
         const baseUrl = activeRequest.url.split('?')[0];
-        const newUrl = buildURLWithParams(baseUrl, params);
+        const newUrl = buildURLWithParams(baseUrl, newParams);
         updateActiveRequestField('url', newUrl);
       }
     }
-  }, [params]);
+  };
 
   const addParam = () => {
-    setParams(prev => [...prev, {
+    const newParams = [...params, {
       id: generateId(),
       key: '',
       value: '',
       enabled: true,
-    }]);
+    }];
+    setParams(newParams);
   };
 
   const updateParam = (id: string, field: keyof KeyValue, value: string | boolean) => {
-    setParams(prev => prev.map(param => 
+    const newParams = params.map(param => 
       param.id === id ? { ...param, [field]: value } : param
-    ));
+    );
+    setParams(newParams);
   };
 
   const removeParam = (id: string) => {
-    setParams(prev => prev.filter(param => param.id !== id));
+    const newParams = params.filter(param => param.id !== id);
+    setParams(newParams);
   };
 
   const toggleParam = (id: string) => {
-    setParams(prev => prev.map(param => 
+    const newParams = params.map(param => 
       param.id === id ? { ...param, enabled: !param.enabled } : param
-    ));
+    );
+    setParams(newParams);
   };
 
   return (
@@ -79,18 +61,33 @@ export const ParamsTab: React.FC = () => {
           <div>
             <h3 className="text-sm font-medium text-gray-900">Query Parameters</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Add query parameters to your request URL
+              Add query parameters to your request URL • {params.filter(p => p.enabled).length} active
             </p>
           </div>
           
-          <Button
-            size="sm"
-            variant="primary"
-            icon={<Plus className="h-4 w-4" />}
-            onClick={addParam}
-          >
-            Add Parameter
-          </Button>
+          <div className="flex items-center gap-2">
+            {params.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  const newParams = params.map(p => ({ ...p, enabled: !p.enabled }));
+                  setParams(newParams);
+                }}
+                className="text-xs"
+              >
+                Toggle All
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={addParam}
+            >
+              Add Parameter
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -187,14 +184,20 @@ export const ParamsTab: React.FC = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setParams(prev => prev.map(p => ({ ...p, enabled: true })))}
+                    onClick={() => {
+                      const newParams = params.map(p => ({ ...p, enabled: true }));
+                      setParams(newParams);
+                    }}
                   >
                     Enable All
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setParams(prev => prev.map(p => ({ ...p, enabled: false })))}
+                    onClick={() => {
+                      const newParams = params.map(p => ({ ...p, enabled: false }));
+                      setParams(newParams);
+                    }}
                   >
                     Disable All
                   </Button>
@@ -212,19 +215,80 @@ export const ParamsTab: React.FC = () => {
           </div>
         ) : (
           /* Empty State */
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                <Plus className="h-8 w-8 text-gray-400" />
+          <div className="flex-1 flex flex-col justify-center p-8">
+            <div className="text-center max-w-md mx-auto">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
               </div>
               
-              <h3 className="text-sm font-medium text-gray-900 mb-1">
-                No query parameters
+              <h3 className="text-sm font-medium text-gray-900 mb-2">
+                No Query Parameters
               </h3>
               
-              <p className="text-sm text-gray-500 mb-4">
-                Add query parameters to customize your request URL
+              <p className="text-sm text-gray-500 mb-6">
+                Add query parameters to customize your request URL. These will be appended to your URL automatically.
               </p>
+
+              {/* Quick Templates */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-900">Common Parameters</h4>
+                
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => {
+                      const commonParams = [
+                        { id: generateId(), key: 'page', value: '1', enabled: true },
+                        { id: generateId(), key: 'limit', value: '10', enabled: true },
+                      ];
+                      setParams(commonParams);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Pagination</span>
+                      <p className="text-xs text-gray-500">page=1&limit=10</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const apiParams = [
+                        { id: generateId(), key: 'api_key', value: `${'{{api_key}}'}`, enabled: true },
+                        { id: generateId(), key: 'format', value: 'json', enabled: true },
+                      ];
+                      setParams(apiParams);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">API Authentication</span>
+                      <p className="text-xs text-gray-500">api_key=&#123;&#123;api_key&#125;&#125;&format=json</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const searchParams = [
+                        { id: generateId(), key: 'q', value: `${'{{search_term}}'}`, enabled: true },
+                        { id: generateId(), key: 'sort', value: 'created_at', enabled: true },
+                        { id: generateId(), key: 'order', value: 'desc', enabled: true },
+                      ];
+                      setParams(searchParams);
+                    }}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Search & Sort</span>
+                      <p className="text-xs text-gray-500">q=&#123;&#123;search_term&#125;&#125;&sort=created_at&order=desc</p>
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </button>
+                </div>
+              </div>
               
               <Button
                 variant="primary"

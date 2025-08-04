@@ -1,6 +1,6 @@
 import React from 'react';
 import { Play, Save, Copy, MoreHorizontal } from 'lucide-react';
-import { Button, Input, Select, Tabs, VariablePreview, VariableInput } from '@/components/ui';
+import { Button, Input, Select, Tabs, VariablePreview, VariableInput, Toast } from '@/components/ui';
 import { useUIStore, useAPIStore } from '@/store';
 import { cn, getMethodColor, applyEnvironmentVariables } from '@/utils';
 import { ParamsTab } from './tabs/ParamsTab';
@@ -8,6 +8,7 @@ import { AuthTab } from './tabs/AuthTab';
 import { HeadersTab } from './tabs/HeadersTab';
 import { BodyTab } from './tabs/BodyTab';
 import { TestsTab } from './tabs/TestsTab';
+import { SaveRequestModal } from '@/components/modals/SaveRequestModal';
 import type { HTTPMethod, Request, APIResponse } from '@/types';
 
 const HTTP_METHODS: { value: HTTPMethod; label: string }[] = [
@@ -35,35 +36,121 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
   onExecutionStart,
   className,
 }) => {
-  const { activeTab, setActiveTab } = useUIStore();
-  const { executeRequest, environments } = useAPIStore();
+  const { activeTab, setActiveTab, activeRequest, setActiveRequest, updateActiveRequestField } = useUIStore();
+  const { executeRequest, environments, createRequest, updateRequest } = useAPIStore();
   
-  const [request, setRequest] = React.useState<Request>(
-    initialRequest || {
-      id: -1,
-      name: 'Untitled Request',
-      method: 'GET',
-      url: '',
-      headers: '{}',
-      body: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  );
   const [isExecutingRequest, setIsExecutingRequest] = React.useState(false);
+  const [showSaveRequestModal, setShowSaveRequestModal] = React.useState(false);
+  const [toast, setToast] = React.useState<{
+    message: string;
+    type: 'success' | 'error';
+    isVisible: boolean;
+  }>({
+    message: '',
+    type: 'success',
+    isVisible: false,
+  });
 
-  // Update local state when initialRequest changes
+  // Use activeRequest from store or fallback to initialRequest
+  const currentRequest = activeRequest || initialRequest || {
+    id: -1,
+    name: 'Untitled Request',
+    method: 'GET' as const,
+    url: '',
+    headers: '{}',
+    body: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Sync activeRequest with initialRequest when it changes (but don't overwrite existing changes)
+  const hasSetDefault = React.useRef(false);
+  
   React.useEffect(() => {
-    if (initialRequest) {
-      setRequest(initialRequest);
+    if (initialRequest && (!activeRequest || activeRequest.id !== initialRequest.id)) {
+      // Only set activeRequest if it's a different request or no active request
+      setActiveRequest(initialRequest);
+      hasSetDefault.current = true;
+    } else if (!activeRequest && !hasSetDefault.current) {
+      // Create a default request if none exists
+      const defaultRequest = {
+        id: -1,
+        name: 'Untitled Request',
+        method: 'GET' as const,
+        url: '',
+        headers: '{}',
+        body: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setActiveRequest(defaultRequest);
+      hasSetDefault.current = true;
     }
-  }, [initialRequest]);
+  }, [initialRequest?.id, setActiveRequest]);
 
-  // Update field helper
-  const updateRequestField = <K extends keyof Request>(field: K, value: Request[K]) => {
-    const updatedRequest = { ...request, [field]: value };
-    setRequest(updatedRequest);
-    onRequestUpdate?.(updatedRequest);
+  // We don't need updateRequestField since the tabs will handle store updates directly
+
+  const handleSaveClick = () => {
+    if (!currentRequest) return;
+    
+    // Se a request já está salva (tem collection_id), apenas mostra mensagem de sucesso
+    if (currentRequest.collection_id) {
+      const { collections, folders } = useAPIStore.getState();
+      const collection = collections.find(c => c.id === currentRequest.collection_id);
+      const folder = currentRequest.folder_id ? folders.find(f => f.id === currentRequest.folder_id) : null;
+      
+      let location = collection?.name || 'Unknown collection';
+      if (folder) {
+        location = `${collection?.name} > ${folder.name}`;
+      }
+      
+      setToast({
+        message: `Request already saved in ${location}`,
+        type: 'success',
+        isVisible: true,
+      });
+      return;
+    }
+    
+    // Se não está salva, abre o modal
+    setShowSaveRequestModal(true);
+  };
+
+  const handleSaveRequest = async (name: string, collectionId?: number, folderId?: number) => {
+    if (!currentRequest) return;
+    
+    try {
+      if (currentRequest.id === -1) {
+        // Create new request
+        const newRequest = await createRequest(
+          name,
+          currentRequest.method,
+          currentRequest.url,
+          currentRequest.headers,
+          currentRequest.body,
+          collectionId,
+          folderId
+        );
+        setActiveRequest(newRequest);
+        console.log('✅ Request created successfully:', newRequest);
+      } else {
+        // Update existing request
+        const updatedRequest = await updateRequest(
+          currentRequest.id,
+          name,
+          currentRequest.method,
+          currentRequest.url,
+          currentRequest.headers,
+          currentRequest.body,
+          collectionId,
+          folderId
+        );
+        setActiveRequest(updatedRequest);
+        console.log('✅ Request updated successfully:', updatedRequest);
+      }
+    } catch (error) {
+      console.error('❌ Failed to save request:', error);
+    }
   };
 
   const handleSendRequest = async () => {
@@ -75,13 +162,13 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
     try {
       // Apply environment variables to request data
       const processedRequest = applyEnvironmentVariables({
-        url: request.url,
-        headers: request.headers,
-        body: request.body,
+        url: currentRequest.url,
+        headers: currentRequest.headers,
+        body: currentRequest.body,
       }, environments);
 
       const response = await executeRequest(
-        request.method,
+        currentRequest.method,
         processedRequest.url,
         processedRequest.headers,
         processedRequest.body
@@ -100,7 +187,7 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
     {
       id: 'params' as const,
       label: 'Params',
-      badge: request.params?.filter(p => p.enabled).length || undefined,
+      badge: currentRequest.params?.filter(p => p.enabled).length || undefined,
     },
     {
       id: 'auth' as const,
@@ -109,7 +196,7 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
     {
       id: 'headers' as const,
       label: 'Headers',
-      badge: request.parsedHeaders?.filter(h => h.enabled).length || undefined,
+      badge: currentRequest.parsedHeaders?.filter(h => h.enabled).length || undefined,
     },
     {
       id: 'body' as const,
@@ -128,7 +215,7 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-gray-900">
-              {request.name}
+              {currentRequest.name}
             </h2>
           </div>
 
@@ -144,6 +231,7 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
               variant="ghost"
               icon={<Save className="h-4 w-4" />}
               title="Save Request"
+              onClick={handleSaveClick}
             />
             <Button
               size="sm"
@@ -160,15 +248,15 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
             <div className="w-32 flex-shrink-0">
               <Select
                 options={HTTP_METHODS}
-                value={request.method}
-                onChange={(value) => updateRequestField('method', value as HTTPMethod)}
+                value={currentRequest.method}
+                onChange={(value) => updateActiveRequestField('method', value as HTTPMethod)}
               />
             </div>
 
             <div className="flex-1 min-w-0">
               <VariableInput
-                value={request.url}
-                onChange={(value) => updateRequestField('url', value)}
+                value={currentRequest.url}
+                onChange={(value) => updateActiveRequestField('url', value)}
                 placeholder="Enter request URL"
                 className="font-mono text-sm"
               />
@@ -190,7 +278,7 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
           {/* Variable Preview - Full width below */}
           <div className="pl-[8.5rem]">
             <VariablePreview
-              text={request.url}
+              text={currentRequest.url}
               environments={environments}
               label="URL with variables:"
             />
@@ -210,12 +298,28 @@ export const RequestBuilder: React.FC<RequestBuilderProps> = ({
 
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'params' && <ParamsTab activeRequest={request} updateActiveRequestField={updateRequestField} />}
-        {activeTab === 'auth' && <AuthTab activeRequest={request} updateActiveRequestField={updateRequestField} />}
-        {activeTab === 'headers' && <HeadersTab activeRequest={request} updateActiveRequestField={updateRequestField} />}
-        {activeTab === 'body' && <BodyTab activeRequest={request} updateActiveRequestField={updateRequestField} />}
-        {activeTab === 'tests' && <TestsTab activeRequest={request} updateActiveRequestField={updateRequestField} />}
+        {activeTab === 'params' && <ParamsTab />}
+        {activeTab === 'auth' && <AuthTab />}
+        {activeTab === 'headers' && <HeadersTab />}
+        {activeTab === 'body' && <BodyTab />}
+        {activeTab === 'tests' && <TestsTab />}
       </div>
+
+      {/* Save Request Modal */}
+      <SaveRequestModal
+        isOpen={showSaveRequestModal}
+        onClose={() => setShowSaveRequestModal(false)}
+        onSubmit={handleSaveRequest}
+        request={currentRequest}
+      />
+
+      {/* Toast */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 };

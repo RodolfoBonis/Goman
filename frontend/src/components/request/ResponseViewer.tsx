@@ -93,17 +93,17 @@ export const ResponseViewer: React.FC<ResponseViewerProps> = ({ response }) => {
     )}>
       {/* Response Header */}
       <div className="p-4 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between mb-4 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className={cn(
-              'px-2 py-1 rounded text-sm font-medium',
+              'px-2 py-1 rounded text-sm font-medium flex-shrink-0',
               getStatusColor(response.status)
             )}>
               {response.statusText}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
             <Button
               size="sm"
               variant="ghost"
@@ -129,18 +129,18 @@ export const ResponseViewer: React.FC<ResponseViewerProps> = ({ response }) => {
         </div>
 
         {/* Response Stats */}
-        <div className="flex items-center gap-6 text-sm text-gray-600">
-          <div className="flex items-center gap-1">
+        <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap min-w-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <span className="font-medium">Time:</span>
             <span>{formatResponseTime(response.responseTime)}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <span className="font-medium">Size:</span>
             <span>{formatFileSize(responseSize)}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Type:</span>
-            <span>{response.contentType}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="font-medium flex-shrink-0">Type:</span>
+            <span className="truncate">{response.contentType}</span>
           </div>
         </div>
       </div>
@@ -238,7 +238,7 @@ export const ResponseViewer: React.FC<ResponseViewerProps> = ({ response }) => {
         )}
 
         {responseTab === 'headers' && (
-          <div className="h-full p-4 overflow-auto">
+          <div className="flex-1 flex flex-col min-h-0 p-4">
             <HeadersTable headers={JSON.parse(response.headers)} />
           </div>
         )}
@@ -264,14 +264,14 @@ const HeadersTable: React.FC<{ headers: Record<string, string | string[]> }> = (
   const headerEntries = Object.entries(headers);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0">
       <h4 className="text-sm font-medium text-gray-900 mb-3 flex-shrink-0">Response Headers</h4>
       
       {headerEntries.length > 0 ? (
-        <div className="flex-1 border border-gray-200 rounded-lg overflow-hidden">
+        <div className="flex-1 border border-gray-200 rounded-lg overflow-hidden min-h-0">
           <div className="h-full overflow-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
                     Header

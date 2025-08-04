@@ -8,11 +8,15 @@ import {
   Save,
   Copy,
   Plus,
+  FileText,
 } from 'lucide-react';
 import { Button, Select } from '@/components/ui';
 import { useAPIStore, useUIStore } from '@/store';
 import { EnvironmentsListModal } from '@/components/modals/EnvironmentsListModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
+import { ImportExportModal } from '@/components/modals/ImportExportModal';
+import { DocumentationModal } from '@/components/modals/DocumentationModal';
+import { BulkOperationsModal } from '@/components/modals/BulkOperationsModal';
 import { cn } from '@/utils';
 
 interface TopBarProps {
@@ -25,6 +29,9 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewRequest }) => {
   
   const [showEnvironmentsModal, setShowEnvironmentsModal] = React.useState(false);
   const [showSettingsModal, setShowSettingsModal] = React.useState(false);
+  const [showImportExportModal, setShowImportExportModal] = React.useState(false);
+  const [showDocumentationModal, setShowDocumentationModal] = React.useState(false);
+  const [showBulkOperationsModal, setShowBulkOperationsModal] = React.useState(false);
   
   const activeEnvironment = React.useMemo(() => getActiveEnvironment(), [environments]);
 
@@ -49,9 +56,9 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewRequest }) => {
   };
 
   const handleSaveRequest = () => {
-    if (activeRequest && unsavedChanges) {
-      // TODO: Implement request saving
-      console.log('Saving request...');
+    if (activeRequest) {
+      // TODO: Show save modal or implement auto-save
+      console.log('Saving request...', activeRequest);
     }
   };
 
@@ -134,6 +141,29 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewRequest }) => {
               icon={<Copy className="h-4 w-4" />}
               title="Duplicate Request"
             />
+            
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Upload className="h-4 w-4" />}
+              onClick={() => setShowImportExportModal(true)}
+              title="Import/Export Collections"
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<FileText className="h-4 w-4" />}
+              onClick={() => setShowDocumentationModal(true)}
+              title="Generate Documentation"
+            />
+            
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Play className="h-4 w-4" />}
+              onClick={() => setShowBulkOperationsModal(true)}
+              title="Bulk Operations"
+            />
           </div>
         )}
       </div>
@@ -198,6 +228,21 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewRequest }) => {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      <ImportExportModal
+        isOpen={showImportExportModal}
+        onClose={() => setShowImportExportModal(false)}
+      />
+      <DocumentationModal
+        isOpen={showDocumentationModal}
+        onClose={() => setShowDocumentationModal(false)}
+      />
+
+      <BulkOperationsModal
+        isOpen={showBulkOperationsModal}
+        onClose={() => setShowBulkOperationsModal(false)}
+        selectedRequests={[]} // TODO: Get selected requests from store
       />
     </div>
   );

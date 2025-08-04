@@ -138,8 +138,11 @@ export const TabContent: React.FC<TabContentProps> = ({
             <>
               {!responseCollapsed ? (
                 <div 
-                  className="flex flex-col min-h-0 min-w-0"
-                  style={{ width: `${responsePanelWidth}%` }}
+                  className="flex flex-col min-h-0"
+                  style={{ 
+                    width: `${responsePanelWidth}%`,
+                    minWidth: '280px' // Largura mínima para não cortar conteúdo
+                  }}
                 >
                   {/* Response Header with Collapse Button */}
                   <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-gray-50 flex-shrink-0">

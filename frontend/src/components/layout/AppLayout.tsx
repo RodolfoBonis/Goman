@@ -58,7 +58,7 @@ export const AppLayout: React.FC = () => {
   const activeTab = tabs.find(tab => tab.id === activeTabId);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 pb-6">
+    <div className="h-screen flex flex-col bg-gray-50 pb-6 overflow-hidden">
       {/* Top Bar */}
       <TopBar onNewRequest={handleNewRequest} />
       
@@ -68,10 +68,7 @@ export const AppLayout: React.FC = () => {
         <Sidebar />
         
         {/* Main Content Area */}
-        <div className={cn(
-          'flex-1 flex flex-col transition-all duration-300',
-          sidebarCollapsed ? 'ml-16' : 'ml-80'
-        )}>
+        <div className="flex-1 flex flex-col transition-all duration-300 min-w-0">
           {/* Tabs Manager */}
           <TabsManager onNewRequest={handleNewRequest} />
           

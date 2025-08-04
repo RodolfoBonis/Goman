@@ -1,7 +1,7 @@
 import React from 'react';
 import { Play, Plus, Trash2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Button, Input, Select } from '@/components/ui';
-import { cn } from '@/utils';
+import { cn, generateId } from '@/utils';
 import Editor from '@monaco-editor/react';
 
 interface TestAssertion {
@@ -297,26 +297,96 @@ export const TestsTab: React.FC = () => {
               </div>
             ) : (
               /* Empty State */
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center max-w-sm">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                    <AlertCircle className="h-8 w-8 text-gray-400" />
+              <div className="flex-1 flex flex-col justify-center p-8">
+                <div className="text-center max-w-lg mx-auto">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+                    <svg className="h-8 w-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
                   
-                  <h3 className="text-sm font-medium text-gray-900 mb-1">
-                    No test assertions
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    No Test Assertions
                   </h3>
                   
-                  <p className="text-sm text-gray-500 mb-4">
-                    Add assertions to validate your API responses automatically
+                  <p className="text-sm text-gray-500 mb-6">
+                    Add test assertions to automatically validate your API responses. Check status codes, response data, headers, and more.
                   </p>
+
+                  {/* Quick Test Templates */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-gray-900">Common Tests</h4>
+                    
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        onClick={() => {
+                          const statusTest = {
+                            id: generateId(),
+                            field: 'status',
+                            operator: 'equals',
+                            value: '200',
+                            enabled: true,
+                          };
+                          setAssertions([statusTest]);
+                        }}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 transition-colors text-left"
+                      >
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">Status Code 200</span>
+                          <p className="text-xs text-gray-500">Check if request is successful</p>
+                        </div>
+                        <Plus className="h-4 w-4 text-gray-400" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const responseTimeTest = {
+                            id: generateId(),
+                            field: 'responseTime',
+                            operator: 'lessThan',
+                            value: '1000',
+                            enabled: true,
+                          };
+                          setAssertions([responseTimeTest]);
+                        }}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 transition-colors text-left"
+                      >
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">Response Time</span>
+                          <p className="text-xs text-gray-500">Check if response is fast enough</p>
+                        </div>
+                        <Plus className="h-4 w-4 text-gray-400" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const jsonTest = {
+                            id: generateId(),
+                            field: 'body',
+                            operator: 'contains',
+                            value: 'success',
+                            enabled: true,
+                          };
+                          setAssertions([jsonTest]);
+                        }}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 transition-colors text-left"
+                      >
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">Response Content</span>
+                          <p className="text-xs text-gray-500">Check if response contains specific data</p>
+                        </div>
+                        <Plus className="h-4 w-4 text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
                   
                   <Button
                     variant="primary"
                     icon={<Plus className="h-4 w-4" />}
                     onClick={addAssertion}
+                    className="mt-6"
                   >
-                    Add Assertion
+                    Add Custom Assertion
                   </Button>
                 </div>
               </div>

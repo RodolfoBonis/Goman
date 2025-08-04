@@ -197,6 +197,11 @@ export class APIService {
     await APIClientService.ClearRequestHistory();
   }
 
+  // File operations
+  async saveFileToDownloads(filename: string, content: string): Promise<string> {
+    return await APIClientService.SaveFileToDownloads(filename, content);
+  }
+
   // Request execution
   async executeRequest(method: string, url: string, headers: string, body: string): Promise<APIResponse> {
     const response = await APIClientService.ExecuteRequest(method, url, headers, body);

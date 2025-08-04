@@ -56,6 +56,10 @@ interface APIServiceState {
   ) => Promise<Request>;
   deleteRequest: (id: number) => Promise<void>;
   
+  // Move operations
+  moveRequest: (requestId: number, newCollectionId?: number, newFolderId?: number) => Promise<void>;
+  moveFolder: (folderId: number, newCollectionId?: number, newParentFolderId?: number) => Promise<void>;
+  
   createEnvironment: (name: string, variables: string) => Promise<Environment>;
   updateEnvironment: (id: number, name: string, variables: string, isActive: boolean) => Promise<Environment>;
   deleteEnvironment: (id: number) => Promise<void>;
@@ -191,6 +195,64 @@ export const useAPIStore = create<APIServiceState>()(
         await apiService.deleteRequest(id);
         set(state => ({ requests: state.requests.filter(r => r.id !== id) }));
       },
+
+      async moveRequest(requestId: number, newCollectionId?: number, newFolderId?: number) {
+        try {
+          const request = get().requests.find(r => r.id === requestId);
+          if (!request) throw new Error('Request not found');
+
+          // Update the request with new collection/folder
+          const updatedRequest = await apiService.updateRequest(
+            requestId,
+            request.name,
+            request.method,
+            request.url,
+            request.headers,
+            request.body,
+            newCollectionId,
+            newFolderId
+          );
+
+          // Update local state
+          set(state => ({
+            requests: state.requests.map(r => 
+              r.id === requestId ? updatedRequest : r
+            )
+          }));
+
+          console.log('Request moved successfully:', { requestId, newCollectionId, newFolderId });
+        } catch (error) {
+          console.error('Error moving request:', error);
+          throw error;
+        }
+      },
+
+      async moveFolder(folderId: number, newCollectionId?: number, newParentFolderId?: number) {
+        try {
+          const folder = get().folders.find(f => f.id === folderId);
+          if (!folder) throw new Error('Folder not found');
+
+          // Update the folder with new collection/parent
+          const updatedFolder = await apiService.updateFolder(
+            folderId,
+            folder.name,
+            newCollectionId || folder.collection_id,
+            newParentFolderId
+          );
+
+          // Update local state
+          set(state => ({
+            folders: state.folders.map(f => 
+              f.id === folderId ? updatedFolder : f
+            )
+          }));
+
+          console.log('Folder moved successfully:', { folderId, newCollectionId, newParentFolderId });
+        } catch (error) {
+          console.error('Error moving folder:', error);
+          throw error;
+        }
+      },
       
       async createEnvironment(name: string, variables: string) {
         const environment = await apiService.createEnvironment(name, variables);
@@ -246,6 +308,25 @@ export const useAPIStore = create<APIServiceState>()(
       getCollectionTree(): CollectionTreeItem[] {
         const { collections, folders, requests } = get();
         
+        // Validate data integrity
+        const validateData = () => {
+          const orphanedFolders = folders.filter(f => !collections.find(c => c.id === f.collection_id));
+          const orphanedRequests = requests.filter(r => !collections.find(c => c.id === r.collection_id));
+          const invalidFolderRequests = requests.filter(r => r.folder_id && !folders.find(f => f.id === r.folder_id));
+          
+          if (orphanedFolders.length > 0) {
+            console.warn('Orphaned folders found:', orphanedFolders);
+          }
+          if (orphanedRequests.length > 0) {
+            console.warn('Orphaned requests found:', orphanedRequests);
+          }
+          if (invalidFolderRequests.length > 0) {
+            console.warn('Requests with invalid folder_id found:', invalidFolderRequests);
+          }
+        };
+        
+        validateData();
+        
         const buildTree = (parentId?: number): CollectionTreeItem[] => {
           const items: CollectionTreeItem[] = [];
           
@@ -261,29 +342,30 @@ export const useAPIStore = create<APIServiceState>()(
             });
           } else {
             // Add folders and requests for this parent
-            folders
-              .filter(f => f.collection_id === parentId && !f.parent_folder_id)
-              .forEach(folder => {
-                items.push({
-                  id: folder.id,
-                  name: folder.name,
-                  type: 'folder',
-                  collection_id: folder.collection_id,
-                  children: buildFolderTree(folder.id),
-                });
-              });
+            const collectionFolders = folders.filter(f => f.collection_id === parentId && !f.parent_folder_id);
+            const collectionRequests = requests.filter(r => r.collection_id === parentId && !r.folder_id);
             
-            requests
-              .filter(r => r.collection_id === parentId && !r.folder_id)
-              .forEach(request => {
-                items.push({
-                  id: request.id,
-                  name: request.name,
-                  type: 'request',
-                  collection_id: request.collection_id,
-                  method: request.method,
-                });
+
+            
+            collectionFolders.forEach(folder => {
+              items.push({
+                id: folder.id,
+                name: folder.name,
+                type: 'folder',
+                collection_id: folder.collection_id,
+                children: buildFolderTree(folder.id),
               });
+            });
+            
+            collectionRequests.forEach(request => {
+              items.push({
+                id: request.id,
+                name: request.name,
+                type: 'request',
+                collection_id: request.collection_id,
+                method: request.method,
+              });
+            });
           }
           
           return items;
@@ -293,31 +375,32 @@ export const useAPIStore = create<APIServiceState>()(
           const items: CollectionTreeItem[] = [];
           
           // Add subfolders
-          folders
-            .filter(f => f.parent_folder_id === folderId)
-            .forEach(folder => {
-              items.push({
-                id: folder.id,
-                name: folder.name,
-                type: 'folder',
-                collection_id: folder.collection_id,
-                parent_folder_id: folder.parent_folder_id,
-                children: buildFolderTree(folder.id),
-              });
+          const subfolders = folders.filter(f => f.parent_folder_id === folderId);
+          const folderRequests = requests.filter(r => r.folder_id === folderId);
+          
+
+          
+          subfolders.forEach(folder => {
+            items.push({
+              id: folder.id,
+              name: folder.name,
+              type: 'folder',
+              collection_id: folder.collection_id,
+              parent_folder_id: folder.parent_folder_id,
+              children: buildFolderTree(folder.id),
             });
+          });
           
           // Add requests in this folder
-          requests
-            .filter(r => r.folder_id === folderId)
-            .forEach(request => {
-              items.push({
-                id: request.id,
-                name: request.name,
-                type: 'request',
-                collection_id: request.collection_id,
-                method: request.method,
-              });
+          folderRequests.forEach(request => {
+            items.push({
+              id: request.id,
+              name: request.name,
+              type: 'request',
+              collection_id: request.collection_id,
+              method: request.method,
             });
+          });
           
           return items;
         };
@@ -660,8 +743,8 @@ export const useTabsStore = create<TabsState>()(
         partialize: (state) => ({
           tabs: state.tabs.map(tab => ({
             ...tab,
-            // Don't persist response data
-            ...(tab.type === 'request' ? { response: undefined, isExecuting: false } : {}),
+            // Keep response data but reset isExecuting
+            ...(tab.type === 'request' ? { isExecuting: false } : {}),
           })),
           activeTabId: state.activeTabId,
         }),

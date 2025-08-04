@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -254,6 +256,26 @@ func (s *APIClientService) DeleteRequestHistory(id int) error {
 
 func (s *APIClientService) ClearRequestHistory() error {
 	return database.ClearRequestHistory()
+}
+
+// SaveFileToDownloads saves a file to the user's Downloads folder
+func (s *APIClientService) SaveFileToDownloads(filename, content string) (string, error) {
+	// Get user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	
+	// Create downloads path
+	downloadsPath := filepath.Join(homeDir, "Downloads", filename)
+	
+	// Write file
+	err = os.WriteFile(downloadsPath, []byte(content), 0644)
+	if err != nil {
+		return "", err
+	}
+	
+	return downloadsPath, nil
 }
 
 // ExecuteRequest sends an HTTP request and returns the response

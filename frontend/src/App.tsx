@@ -1,10 +1,8 @@
 import React from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { ToastContainer, useToast } from '@/components/ui';
 import { useAPIStore } from '@/store';
 
 function App() {
-  const { toasts, removeToast } = useToast();
   const { fetchCollections, fetchFolders, fetchRequests, fetchEnvironments } = useAPIStore();
 
   React.useEffect(() => {
@@ -29,7 +27,6 @@ function App() {
   return (
     <div className="App">
       <AppLayout />
-      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

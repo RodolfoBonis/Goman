@@ -79,17 +79,63 @@ export const AuthTab: React.FC = () => {
     switch (authType) {
       case 'none':
         return (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                <Shield className="h-8 w-8 text-gray-400" />
+          <div className="flex-1 flex flex-col justify-center p-8">
+            <div className="text-center max-w-lg mx-auto">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                <Shield className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-sm font-medium text-gray-900 mb-1">
-                No authentication
+              <h3 className="text-sm font-medium text-gray-900 mb-2">
+                No Authentication Required
               </h3>
-              <p className="text-sm text-gray-500">
-                This request will be sent without any authentication
+              <p className="text-sm text-gray-500 mb-6">
+                This request will be sent without any authentication. Perfect for public APIs and endpoints that don't require credentials.
               </p>
+
+              {/* Quick Auth Options */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-900">Need authentication?</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setAuthType('bearer')}
+                    className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Key className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="text-sm font-medium text-gray-900">Bearer Token</h5>
+                      <p className="text-xs text-gray-500">Most common for APIs</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setAuthType('basic')}
+                    className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="text-sm font-medium text-gray-900">Basic Auth</h5>
+                      <p className="text-xs text-gray-500">Username & Password</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setAuthType('api-key')}
+                    className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Key className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="text-sm font-medium text-gray-900">API Key</h5>
+                      <p className="text-xs text-gray-500">Custom key in header/query</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         );

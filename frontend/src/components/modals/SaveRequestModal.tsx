@@ -106,22 +106,21 @@ export const SaveRequestModal: React.FC<SaveRequestModalProps> = ({
               Collection *
             </label>
             <Select
-              id="save-collection"
-              value={collectionId}
-              onChange={(e) => {
-                setCollectionId(e.target.value ? Number(e.target.value) : '');
+              options={[
+                { value: '', label: 'Select a collection' },
+                ...collections.map(collection => ({
+                  value: collection.id.toString(),
+                  label: collection.name
+                }))
+              ]}
+              value={collectionId?.toString() || ''}
+              onChange={(value) => {
+                setCollectionId(value ? Number(value) : '');
                 setFolderId(''); // Reset folder when collection changes
               }}
               className="w-full"
-              required
-            >
-              <option value="">Select a collection</option>
-              {collections.map(collection => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.name}
-                </option>
-              ))}
-            </Select>
+              placeholder="Select a collection"
+            />
           </div>
 
           {availableFolders.length > 0 && collectionId && (
@@ -130,18 +129,18 @@ export const SaveRequestModal: React.FC<SaveRequestModalProps> = ({
                 Folder (optional)
               </label>
               <Select
-                id="save-folder"
-                value={folderId}
-                onChange={(e) => setFolderId(e.target.value ? Number(e.target.value) : '')}
+                options={[
+                  { value: '', label: 'Root of collection' },
+                  ...availableFolders.map(folder => ({
+                    value: folder.id.toString(),
+                    label: folder.name
+                  }))
+                ]}
+                value={folderId?.toString() || ''}
+                onChange={(value) => setFolderId(value ? Number(value) : '')}
                 className="w-full"
-              >
-                <option value="">Root of collection</option>
-                {availableFolders.map(folder => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </option>
-                ))}
-              </Select>
+                placeholder="Root of collection"
+              />
             </div>
           )}
 
